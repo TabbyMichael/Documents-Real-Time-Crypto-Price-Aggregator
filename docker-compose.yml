@@ -1,0 +1,49 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    depends_on:
+      - postgres
+    env_file: .env
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./:/app
+
+  etl-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.etl
+    depends_on:
+      - postgres
+    env_file: .env
+    volumes:
+      - ./:/app
+    command: ["python", "etl/pipeline.py"]
+
+  prefect:
+    image: prefecthq/prefect:2-python
+    env_file: .env
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ["bash", "-c", "prefect orion start --host 0.0.0.0"]
+    ports:
+      - '4200:4200' # Prefect UI (Orion)
+
+volumes:
+  db_data:
